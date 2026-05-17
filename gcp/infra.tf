@@ -1,4 +1,12 @@
 
+resource "google_storage_bucket" "document-chunks" {
+  name                        = "document-chunks-987q2"
+  location                    = var.REGION
+  storage_class               = "STANDARD"
+  force_destroy               = true
+  uniform_bucket_level_access = true
+}
+
 resource "google_storage_bucket" "document-input" {
   name                        = "document-input-987q2"
   location                    = var.REGION
@@ -26,20 +34,16 @@ resource "google_vertex_ai_index" "rag-vector-store" {
 }
 
 
-# resource "google_vertex_ai_index_endpoint" "chunking_lab_endpoint" {
-#   display_name = "chunking-lab-endpoint"
-#   description  = "Public endpoint to query the chunking lab vector store"
-  
-#   public_endpoint_enabled = true
-# }
+resource "google_vertex_ai_index_endpoint" "rag-index-endpoint" {
+  display_name = "rag-index-endpoint"  
+  public_endpoint_enabled = true
+}
 
-# resource "google_vertex_ai_index_deployment" "index_deployment" {
-#   index_endpoint = google_vertex_ai_index_endpoint.chunking_lab_endpoint.id
-#   index          = google_vertex_ai_index.chunking_lab_index.id
-#   deployed_index_id = "deployed_chunking_lab_index"
-
-#   automatic_resources {
-#     min_replica_count = 1
-#     max_replica_count = 2
-#   }
-# }
+resource "google_vertex_ai_index_endpoint_deployed_index" "rag-index-deployment" {
+  deployed_index_id     = "rag_index_deployment"
+  display_name          = "RAG Index Deployment"
+  region                = var.REGION
+  index                 = google_vertex_ai_index.rag-vector-store.id
+  index_endpoint        = google_vertex_ai_index_endpoint.rag-index-endpoint.id
+  enable_access_logging = false
+}

@@ -1,6 +1,6 @@
 import functions_framework
 import os
-import json
+
 from flask import jsonify
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_google_vertexai import VectorSearchVectorStore
@@ -8,20 +8,17 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 
-# Define env vars, vector search and system prompt
-PROJECT_ID = os.environ.get("PROJECT_ID")
-REGION = os.environ.get("REGION", "us-central1")
-DOC_CHUNK_BUCKET = os.environ.get("STAGING_BUCKET")
-INDEX_ID = os.environ.get("INDEX_ID")
-ENDPOINT_ID = os.environ.get("ENDPOINT_ID")
+# Define embedding and system prompt
+_chunking_strategy = os.environ.get("CHUNKING_STRATEGY", "recursive")
 
 _embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 _vector_store = VectorSearchVectorStore.from_components(
-    project_id=PROJECT_ID,
-    region=REGION,
-    gcs_bucket_name=DOC_CHUNK_BUCKET,
-    index_id=INDEX_ID,
-    endpoint_id=ENDPOINT_ID,
+    project_id=os.environ.get("PROJECT_ID"),
+    region=os.environ.get("REGION", "us-central1"),
+    gcs_bucket_name=os.environ.get("DOC_CHUNK_BUCKET"),
+    index_id=os.environ.get("INDEX_ID"),
+    endpoint_id=os.environ.get("ENDPOINT_ID"),
+    chunking_strategy=_chunking_strategy,
     embedding=_embeddings,
     stream_update=True,
 )
@@ -40,10 +37,8 @@ _rag_prompt = ChatPromptTemplate.from_messages(
 )
 
 # Define model and vector store retriever
-_selected_strategy = "recursive"
 _search_kwargs = {"k": 3}
-if _selected_strategy:
-    _search_kwargs["filter"] = {"chunking_strategy": _selected_strategy}
+_search_kwargs["filter"] = {"chunking_strategy": _chunking_strategy}
 statistics_retriever = _vector_store.as_retriever(search_kwargs=_search_kwargs)
 
 _model = ChatOpenAI(model="gpt-4.1", temperature=0)
@@ -55,7 +50,7 @@ def _format_docs(docs):
 
 # Cloud function
 @functions_framework.http
-def process_gcs_pdf(request):
+def search_index(request):
     if request.method == "OPTIONS":
         headers = {
             "Access-Control-Allow-Origin": "*",
@@ -75,7 +70,6 @@ def process_gcs_pdf(request):
     user_query = request_json["query"]
 
     try:
-        # Build your exact LCEL pipeline
         statistics_rag_chain = (
             {
                 "context": statistics_retriever | _format_docs,
@@ -86,16 +80,15 @@ def process_gcs_pdf(request):
             | StrOutputParser()
         )
 
-        # Execute invocation pass
         print(
-            f"Executing RAG Chain query: '{user_query}' with strategy: '{_selected_strategy}'"
+            f"Executing RAG Chain query: '{user_query}' with strategy: '{_chunking_strategy}'"
         )
         ai_response = statistics_rag_chain.invoke(user_query)
 
         # Send structured output payload back to requester
         response_data = {
             "query": user_query,
-            "chunking_strategy": _selected_strategy if _selected_strategy else "all",
+            "chunking_strategy": _chunking_strategy,
             "answer": ai_response,
         }
 

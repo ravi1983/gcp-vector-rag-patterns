@@ -1,3 +1,11 @@
+resource "google_storage_bucket" "cloud-func-source" {
+  name                        = "cloud-func-source-987q2"
+  location                    = var.REGION
+  storage_class               = "STANDARD"
+  force_destroy               = true
+  uniform_bucket_level_access = true
+}
+
 
 resource "google_storage_bucket" "document-chunks" {
   name                        = "document-chunks-987q2"

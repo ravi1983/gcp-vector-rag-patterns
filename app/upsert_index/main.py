@@ -13,16 +13,24 @@ from langchain_community.document_loaders import PyPDFLoader
 # Initialize Global GCP Clients
 storage_client = storage.Client()
 
-# Read Environment Variables
-PROJECT_ID = os.environ.get("PROJECT_ID")
-REGION = os.environ.get("REGION", "us-central1")
-DOC_CHUNK_BUCKET = os.environ.get("DOC_CHUNK_BUCKET")
-INDEX_ID = os.environ.get("INDEX_ID")
-ENDPOINT_ID = os.environ.get("ENDPOINT_ID")
+# Embedding model and vector search init
+_chunking_strategy = os.environ.get("CHUNKING_STRATEGY", "recursive")
+
+_embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+_vector_store = VectorSearchVectorStore.from_components(
+    project_id=os.environ.get("PROJECT_ID"),
+    region=os.environ.get("REGION", "us-central1"),
+    gcs_bucket_name=os.environ.get("DOC_CHUNK_BUCKET"),
+    index_id=os.environ.get("INDEX_ID"),
+    endpoint_id=os.environ.get("ENDPOINT_ID"),
+    chunking_strategy=_chunking_strategy,
+    embedding=_embeddings,
+    stream_update=True,
+)
 
 
 @functions_framework.cloud_event
-def process_gcs_pdf(cloud_event):
+def upsert_index(cloud_event):
     data = cloud_event.data
     bucket_name = data["bucket"]
     file_name = data["name"]
@@ -58,29 +66,15 @@ def process_gcs_pdf(cloud_event):
         chunk_ids = []
         file_hash = hashlib.md5(file_name.encode("utf-8")).hexdigest()
         for index, chunk in enumerate(chunks):
-            chunk_id = f"{file_hash}_recursive_{index}"
+            chunk_id = f"{file_hash}_${_chunking_strategy}_{index}"
             chunk_ids.append(hashlib.md5(chunk_id.encode("utf-8")).hexdigest())
 
-            chunk.metadata["chunking_strategy"] = "recursive"
+            chunk.metadata["chunking_strategy"] = _chunking_strategy
             chunk.metadata["source"] = file_name
-
-        # 1. Instantiate OpenAI Embeddings exactly like your local script
-        embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-
-        # 2. Feed the OpenAI engine directly into the Vertex Vector Store handler
-        vector_store = VectorSearchVectorStore.from_components(
-            project_id=PROJECT_ID,
-            region=REGION,
-            gcs_bucket_name=DOC_CHUNK_BUCKET,
-            index_id=INDEX_ID,
-            endpoint_id=ENDPOINT_ID,
-            embedding=embeddings,
-            stream_update=True,
-        )
 
         # 3. Upsert execution block
         print(f"Streaming {len(chunks)} OpenAI vectors to Vertex AI Index...")
-        vector_store.add_documents(chunks, ids=chunk_ids)
+        _vector_store.add_documents(chunks, ids=chunk_ids)
         print("Upsert successful.")
 
     finally:

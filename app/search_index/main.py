@@ -27,8 +27,8 @@ _rag_prompt = ChatPromptTemplate.from_messages(
     [
         (
             "system",
-            """You are an expert technical assistant. Use ONLY the following context
-    to answer the questions. If answer is not found in context, you cannot answer the question.
+            """You are an expert technical assistant. Use ONLY the provided context to answer the questions. 
+            If answer is not found in context, you cannot answer the question.
          
     Context: {context}""",
         ),
@@ -70,7 +70,7 @@ def search_index(request):
     user_query = request_json["query"]
 
     try:
-        statistics_rag_chain = (
+        rag_chain = (
             {
                 "context": statistics_retriever | _format_docs,
                 "input": RunnablePassthrough(),
@@ -83,7 +83,7 @@ def search_index(request):
         print(
             f"Executing RAG Chain query: '{user_query}' with strategy: '{_chunking_strategy}'"
         )
-        ai_response = statistics_rag_chain.invoke(user_query)
+        ai_response = rag_chain.invoke(user_query)
 
         # Send structured output payload back to requester
         response_data = {

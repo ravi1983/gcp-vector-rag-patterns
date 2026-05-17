@@ -34,6 +34,7 @@ resource "google_cloudfunctions2_function" "upsert-index" {
         DOC_CHUNK_BUCKET = google_storage_bucket.document-chunks.name
         INDEX_ID = google_vertex_ai_index_endpoint.rag-index-endpoint.id
         ENDPOINT_ID = google_vertex_ai_index_endpoint_deployed_index.rag-index-deployment.id
+        OPENAI_AI_KEY = var.OPENAI_AI_KEY
         CHUNKING_STRATEGY = "recursive"
     }
     ingress_settings = "ALLOW_ALL"
@@ -76,6 +77,7 @@ resource "google_cloudfunctions2_function" "search-index" {
         DOC_CHUNK_BUCKET = google_storage_bucket.document-chunks.name
         INDEX_ID = google_vertex_ai_index_endpoint.rag-index-endpoint.id
         ENDPOINT_ID = google_vertex_ai_index_endpoint_deployed_index.rag-index-deployment.id
+        OPENAI_AI_KEY = var.OPENAI_AI_KEY
         CHUNKING_STRATEGY = "recursive"
     }
     ingress_settings = "ALLOW_ALL"

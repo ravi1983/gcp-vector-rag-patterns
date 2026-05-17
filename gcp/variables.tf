@@ -3,3 +3,4 @@ variable "PROJECT_ID" {
 }
 
 variable "REGION" {}
+variable "OPENAI_AI_KEY" {}

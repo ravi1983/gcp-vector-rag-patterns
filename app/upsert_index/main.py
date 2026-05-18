@@ -11,7 +11,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 
 # Initialize Global GCP Clients
-storage_client = storage.Client()
+storage_client = storage.Client(project=os.environ["PROJECT_ID"])
 
 # Embedding model and vector search init
 _chunking_strategy = os.environ.get("CHUNKING_STRATEGY", "recursive")

@@ -46,6 +46,8 @@ resource "google_cloudfunctions2_function" "upsert-index" {
     available_memory   = "512Mi"
     timeout_seconds    = 60
 
+    service_account_email = google_service_account.rag-cf-sa.email
+
     environment_variables = {
         PROJECT_ID = var.PROJECT_ID
         REGION = var.REGION
@@ -56,6 +58,17 @@ resource "google_cloudfunctions2_function" "upsert-index" {
         CHUNKING_STRATEGY = "recursive"
     }
     ingress_settings = "ALLOW_ALL"
+  }
+
+  event_trigger {
+    trigger_region = var.REGION
+    event_type     = "google.cloud.storage.object.v1.finalized"
+    retry_policy   = "RETRY_POLICY_RETRY"
+
+    event_filters {
+      attribute = "bucket"
+      value = google_storage_bucket.document-input.name
+    }
   }
 }
 

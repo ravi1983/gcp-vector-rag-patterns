@@ -8,8 +8,9 @@ variable "function_roles" {
   type = list(string)
   default = [
     "roles/aiplatform.user",
-    "roles/storage.objectViewer",
-    "roles/eventarc.eventReceiver"
+    "roles/storage.admin",
+    "roles/eventarc.eventReceiver",
+    "roles/logging.logWriter"
   ]
 }
 

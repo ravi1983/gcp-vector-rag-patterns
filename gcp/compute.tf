@@ -4,7 +4,7 @@ resource "null_resource" "compile_requirements" {
   }
 
   provisioner "local-exec" {
-    command = "cd ${path.module}/../app/upsert_index && uv pip compile ../../pyproject.toml -o requirements.txt"
+    command = "uv pip compile ${path.module}/../pyproject.toml -o ${path.module}/../app/upsert_index/requirements.txt && uv pip compile ${path.module}/../pyproject.toml -o ${path.module}/../app/search_index/requirements.txt"
   }
 }
 
@@ -17,14 +17,14 @@ data "archive_file" "upsert-index-func-zip" {
 }
 
 resource "google_storage_bucket_object" "upsert-index-zip" {
-  name   = "upsert-index.zip"
+  name   = "upsert-index-${filemd5("${path.root}/../upsert-index.zip")}-.zip"
   bucket = google_storage_bucket.cloud-func-source.name
 
   source = "${path.root}/../upsert-index.zip"
 }
 
-resource "google_cloudfunctions2_function" "upsert-index" {
-  name        = "upsert-index-func"
+resource "google_cloudfunctions2_function" "upsert-index-func" {
+  name        = "upsert-index-func-${random_string.deployment_suffix.result}"
   location    = var.REGION
   project     = var.PROJECT_ID
   description = "Upsert vector search index"
@@ -43,7 +43,8 @@ resource "google_cloudfunctions2_function" "upsert-index" {
 
   service_config {
     max_instance_count = 10
-    available_memory   = "512Mi"
+    available_cpu = "1"
+    available_memory   = "2Gi"
     timeout_seconds    = 60
 
     service_account_email = google_service_account.rag-cf-sa.email
@@ -72,46 +73,57 @@ resource "google_cloudfunctions2_function" "upsert-index" {
   }
 }
 
-# resource "google_storage_bucket_object" "search-index-zip" {
-#   name   = "search-index-zip"
-#   bucket = google_storage_bucket.cloud-func-source.name
+data "archive_file" "search-index-func-zip" {
+  type        = "zip"
+  source_dir  = "${path.module}/../app/search_index/"
+  output_path = "${path.module}/../search-index.zip"
 
-#   source = "${path.root}/search-index.zip"
-# }
+  depends_on = [null_resource.compile_requirements]
+}
 
-# resource "google_cloudfunctions2_function" "search-index" {
-#   name        = "search-index"
-#   location    = var.REGION
-#   project     = var.PROJECT_ID
-#   description = "Search vector search index"
+resource "google_storage_bucket_object" "search-index-zip" {
+  name   = "search-index-${filemd5("${path.root}/../search-index.zip")}-.zip"
+  bucket = google_storage_bucket.cloud-func-source.name
 
-#   build_config {
-#     runtime     = "python312"
-#     entry_point = "search_index"
+  source = "${path.root}/../search-index.zip"
+}
 
-#     source {
-#       storage_source {
-#         bucket = google_storage_bucket.cloud-func-source.name
-#         object = google_storage_bucket_object.search-index-zip.name
-#       }
-#     }
-#   }
 
-#   service_config {
-#     max_instance_count = 10
-#     available_memory   = "256Mi"
-#     timeout_seconds    = 60
+resource "google_cloudfunctions2_function" "search-index-func" {
+  name        = "search-index-func-${random_string.deployment_suffix.result}"
+  location    = var.REGION
+  project     = var.PROJECT_ID
+  description = "Search vector search index"
 
-#     environment_variables = {
-#         PROJECT_ID = var.PROJECT_ID
-#         REGION = var.REGION
-#         DOC_CHUNK_BUCKET = google_storage_bucket.document-chunks.name
-#         INDEX_ID = google_vertex_ai_index_endpoint.rag-index-endpoint.id
-#         ENDPOINT_ID = google_vertex_ai_index_endpoint_deployed_index.rag-index-deployment.id
-#         OPENAI_API_KEY = var.OPENAI_API_KEY
-#         CHUNKING_STRATEGY = "recursive"
-#     }
-#     ingress_settings = "ALLOW_ALL"
-#   }
-# }
+  build_config {
+    runtime     = "python312"
+    entry_point = "search_index"
 
+    source {
+      storage_source {
+        bucket = google_storage_bucket.cloud-func-source.name
+        object = google_storage_bucket_object.search-index-zip.name
+      }
+    }
+  }
+
+  service_config {
+    max_instance_count = 10
+    available_memory   = "2Gi"
+    available_cpu = "1"
+    timeout_seconds    = 60
+
+    service_account_email = google_service_account.rag-cf-sa.email
+
+    environment_variables = {
+        PROJECT_ID = var.PROJECT_ID
+        REGION = var.REGION
+        DOC_CHUNK_BUCKET = google_storage_bucket.document-chunks.name
+        INDEX_ID = element(split("/", google_vertex_ai_index.rag-vector-store.id), 5)
+        ENDPOINT_ID = element(split("/", google_vertex_ai_index_endpoint.rag-index-endpoint.id), 5)
+        OPENAI_API_KEY = var.OPENAI_API_KEY
+        CHUNKING_STRATEGY = "recursive"
+    }
+    ingress_settings = "ALLOW_ALL"
+  }
+}

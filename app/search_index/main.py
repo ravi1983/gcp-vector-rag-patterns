@@ -1,7 +1,11 @@
-import functions_framework
+import json
 import os
 
-from flask import jsonify
+import functions_framework
+from google.cloud.aiplatform.matching_engine.matching_engine_index_endpoint import (
+    Namespace,
+)
+
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_google_vertexai import VectorSearchVectorStore
 from langchain_core.prompts import ChatPromptTemplate
@@ -36,9 +40,12 @@ _rag_prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
+
 # Define model and vector store retriever
 _search_kwargs = {"k": 3}
-_search_kwargs["filter"] = {"chunking_strategy": _chunking_strategy}
+_search_kwargs["filter"] = [
+    Namespace(name="chunking_strategy", allow_tokens=[_chunking_strategy])
+]
 statistics_retriever = _vector_store.as_retriever(search_kwargs=_search_kwargs)
 
 _model = ChatOpenAI(model="gpt-4.1", temperature=0)
@@ -61,11 +68,11 @@ def search_index(request):
         return ("", 204, headers)
 
     if request.method != "POST":
-        return jsonify({"error": "Method not allowed. Use POST."}), 405
+        return {"error": "Method not allowed. Use POST."}, 405
 
     request_json = request.get_json(silent=True)
     if not request_json or "query" not in request_json:
-        return jsonify({"error": "Missing required field: 'query'"}), 400
+        return {"error": "Missing required field: 'query'"}, 400
 
     user_query = request_json["query"]
 
@@ -84,6 +91,7 @@ def search_index(request):
             f"Executing RAG Chain query: '{user_query}' with strategy: '{_chunking_strategy}'"
         )
         ai_response = rag_chain.invoke(user_query)
+        print(f"AI respones {ai_response}")
 
         # Send structured output payload back to requester
         response_data = {
@@ -93,11 +101,11 @@ def search_index(request):
         }
 
         headers = {"Access-Control-Allow-Origin": "*"}
-        return (jsonify(response_data), 200, headers)
+        return (json.dumps(response_data), 200, headers)
 
     except Exception as e:
         print(f"Internal RAG pipeline error occurred: {str(e)}")
         return (
-            jsonify({"error": "Internal execution failure processing vector query."}),
+            {"error": "Internal execution failure processing vector query."},
             500,
         )

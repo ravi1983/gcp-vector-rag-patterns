@@ -91,7 +91,6 @@ def search_index(request):
             f"Executing RAG Chain query: '{user_query}' with strategy: '{_chunking_strategy}'"
         )
         ai_response = rag_chain.invoke(user_query)
-        print(f"AI respones {ai_response}")
 
         # Send structured output payload back to requester
         response_data = {

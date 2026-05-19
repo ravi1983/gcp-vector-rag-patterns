@@ -17,7 +17,7 @@ data "archive_file" "upsert-index-func-zip" {
 }
 
 resource "google_storage_bucket_object" "upsert-index-zip" {
-  name   = "upsert-index-${filemd5("${path.root}/../upsert-index.zip")}-.zip"
+  name   = "upsert-index-${filemd5("${path.root}/../upsert-index.zip")}.zip"
   bucket = google_storage_bucket.cloud-func-source.name
 
   source = "${path.root}/../upsert-index.zip"
@@ -56,7 +56,7 @@ resource "google_cloudfunctions2_function" "upsert-index-func" {
         INDEX_ID = element(split("/", google_vertex_ai_index.rag-vector-store.id), 5)
         ENDPOINT_ID = element(split("/", google_vertex_ai_index_endpoint.rag-index-endpoint.id), 5)
         OPENAI_API_KEY = var.OPENAI_API_KEY
-        CHUNKING_STRATEGY = "recursive"
+        CHUNKING_STRATEGY = "semantic"
     }
     ingress_settings = "ALLOW_ALL"
   }
@@ -122,7 +122,7 @@ resource "google_cloudfunctions2_function" "search-index-func" {
         INDEX_ID = element(split("/", google_vertex_ai_index.rag-vector-store.id), 5)
         ENDPOINT_ID = element(split("/", google_vertex_ai_index_endpoint.rag-index-endpoint.id), 5)
         OPENAI_API_KEY = var.OPENAI_API_KEY
-        CHUNKING_STRATEGY = "recursive"
+        CHUNKING_STRATEGY = "semantic"
     }
     ingress_settings = "ALLOW_ALL"
   }

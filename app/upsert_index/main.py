@@ -5,6 +5,7 @@ import os
 import tempfile
 
 from google.cloud import storage
+from langchain_experimental.text_splitter import SemanticChunker
 from langchain_openai import OpenAIEmbeddings
 from langchain_google_vertexai import VectorSearchVectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -53,20 +54,21 @@ def upsert_index(cloud_event):
         loader = PyPDFLoader(temp_pdf_path, mode="page")
         docs = loader.load()
 
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000, chunk_overlap=30
-        )
+        # Choosing the text splitter
+        if _chunking_strategy == "semantic":
+            text_splitter = SemanticChunker(
+                _embeddings, breakpoint_threshold_type="percentile"
+            )
+        else:
+            text_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=1000, chunk_overlap=30
+            )
         chunks = text_splitter.split_documents(docs)
-
-        # # Ingestion tracking labels for your Chunking Lab metrics
-        # strategy = "recursive"
-        # if "semantic" in file_name:
-        #     strategy = "semantic"
 
         chunk_ids = []
         file_hash = hashlib.md5(file_name.encode("utf-8")).hexdigest()
         for index, chunk in enumerate(chunks):
-            chunk_id = f"{file_hash}_${_chunking_strategy}_{index}"
+            chunk_id = f"{file_hash}_{_chunking_strategy}_{index}"
             chunk_ids.append(hashlib.md5(chunk_id.encode("utf-8")).hexdigest())
 
             chunk.metadata["chunking_strategy"] = _chunking_strategy
